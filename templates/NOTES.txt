@@ -1,0 +1,41 @@
+Wavelog has been deployed as release "{{ .Release.Name }}".
+{{- if ne .Release.Name "wavelog" }}
+
+NOTE: the release name is not "wavelog". The host names below are derived
+from it - use exactly these names in redis.php and worker.php.
+{{- end }}
+
+Access:
+{{- if .Values.ingress.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  kubectl -n {{ .Release.Namespace }} get svc {{ include "wavelog.fullname" . }} -w
+{{- else }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "wavelog.fullname" . }} 8086:{{ .Values.service.port }}
+  http://localhost:8086
+{{- end }}
+{{- if .Values.mariadb.deploy_db }}
+
+Enter in the web installer:
+  Hostname:   {{ include "wavelog.fullname" . }}-db
+  Database:   {{ .Values.mariadb.database }}
+  User:       {{ .Values.mariadb.username }}
+  Password:   mariadb.password from your values
+{{- end }}
+
+Valkey (redis.php):
+  Hostname:   {{ include "wavelog.fullname" . }}-valkey
+  Port:       6379
+
+Worker ({{ .Values.worker.replicas }} nodes, coordinated via Valkey) - set in application/config/worker.php:
+  $config['worker_enabled'] = true;
+  $config['worker_url'] = 'http://{{ include "wavelog.fullname" . }}-worker:9001';
+{{- if .Values.ingress.enabled }}
+  $config['worker_client_url'] = 'wss://{{ .Values.ingress.host }}';
+{{- else }}
+  $config['worker_client_url'] = '';  # ingress.enabled=false -> no WebSocket in the browser
+{{- end }}
+  $config['worker_secret'] = '<worker.secret>';
+
+After the installer has finished: add config.php, redis.php and worker.php
+(README, "First run"), then scale wavelog.replicas up.

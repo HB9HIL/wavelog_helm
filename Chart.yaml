@@ -1,0 +1,20 @@
+apiVersion: v2
+name: wavelog
+description: Wavelog amateur radio logbook with worker (WebSocket), Valkey and optional MariaDB
+type: application
+version: 1.0.0
+appVersion: "3.2.2"
+home: https://github.com/HB9HIL/wavelog_helm
+icon: https://raw.githubusercontent.com/wavelog/wavelog/master/assets/icons/android/android-launchericon-192-192.png
+keywords:
+  - wavelog
+  - amateur-radio
+  - ham-radio
+  - logbook
+sources:
+  - https://github.com/HB9HIL/wavelog_helm
+  - https://github.com/wavelog/wavelog
+  - https://github.com/wavelog/wavelog_worker
+maintainers:
+  - name: HB9HIL
+    url: https://github.com/HB9HIL

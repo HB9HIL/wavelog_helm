@@ -1,0 +1,113 @@
+{{/* The worker (>= 0.3.0) is configured entirely via WORKER_* env, no config.yaml.
+     Without required the worker would only die inside the pod with an empty secret */}}
+{{- $workerSecret := .Values.worker.secret | required "worker.secret is required (openssl rand -hex 32), must match worker_secret in worker.php" }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "wavelog.fullname" . }}-worker
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  WORKER_SECRET: {{ $workerSecret | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wavelog.fullname" . }}-worker
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+    {{- with .Values.worker.metadata.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.worker.metadata.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  # The nodes find each other via Valkey (worker >= 0.3.0), PHP only knows
+  # the service. Hence Deployment instead of StatefulSet: scales freely,
+  # replaces one pod at a time, never below the desired count.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-worker
+        {{- include "wavelog.labels" . | nindent 8 }}
+      annotations:
+        # Env is read at start only - forces a rollout when the secret changes
+        checksum/secret: {{ $workerSecret | sha256sum }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      # Without an explicit spread several workers end up on the same node
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-worker
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          env:
+            # The internal API must be reachable from the PHP pod; keep it inside
+            # the namespace with a NetworkPolicy
+            - name: WORKER_INTERNAL_BIND
+              value: "0.0.0.0"
+            - name: WORKER_REDIS_URL
+              value: "redis://{{ include "wavelog.fullname" . }}-valkey:6379/2"
+            - name: WORKER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wavelog.fullname" . }}-worker
+                  key: WORKER_SECRET
+          ports:
+            - name: worker-ws
+              containerPort: 9000
+            - name: worker-internal
+              containerPort: 9001
+          # /readyz is 503 until Valkey is connected - a pod without cluster
+          # connection gets no traffic
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: worker-internal
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: worker-ws
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wavelog.fullname" . }}-worker
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-worker
+  ports:
+    - name: worker-ws
+      port: 9000
+      targetPort: worker-ws
+    - name: worker-internal
+      port: 9001
+      targetPort: worker-internal

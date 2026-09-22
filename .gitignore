@@ -1,0 +1,4 @@
+*.php
+*.secrets.yaml
+*.tgz
+worker-config.yaml

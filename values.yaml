@@ -1,0 +1,171 @@
+# Optional PriorityClass for all pods of this release. Empty = none.
+priorityClassName: ""
+
+wavelog:
+  # Keep 1 until the web installer has finished, otherwise every replica
+  # runs into the installer at the same time. Replicas > 1 need
+  # ReadWriteMany storage for the shared volumes (see persistence).
+  replicas: 1
+  # Secrets holding one file each (config.php, database.php, redis.php,
+  # worker.php). They are mounted together into application/config/docker
+  # and replace the config PVC. Empty = config PVC, files copied in by hand
+  # (see README).
+  configSecrets: []
+  image:
+    repository: ghcr.io/wavelog/wavelog
+    # Empty = Chart.appVersion
+    tag: ""
+    pullPolicy: IfNotPresent
+  # imagePullSecrets:
+  #   - name: regcred
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  # Applied to the Deployment (not the pod), e.g. for Keel (see README)
+  metadata:
+    labels: {}
+    annotations: {}
+
+worker:
+  # Scales freely - the nodes find each other via Valkey (worker >= 0.3.0)
+  replicas: 3
+  # Shared secret, must match worker_secret in worker.php, min. 32 chars
+  # (openssl rand -hex 32). Required; pass it via --set or a values file
+  # that is not committed.
+  secret: ""
+  image:
+    repository: ghcr.io/wavelog/wavelog_worker
+    tag: "v0.3.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  metadata:
+    labels: {}
+    annotations: {}
+
+cron:
+  # Seconds between calls of /index.php/cron/run
+  interval: 60
+  image:
+    repository: curlimages/curl
+    tag: "8.22.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 32Mi
+  metadata:
+    labels: {}
+    annotations: {}
+
+valkey:
+  image:
+    repository: valkey/valkey
+    tag: "8.1-alpine"
+    pullPolicy: IfNotPresent
+  # Generous limit: Valkey does not know the cgroup limit and gets
+  # OOM-killed instead of evicting. Set maxmemory once the real usage is
+  # known - sessions and cache share this instance.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+mariadb:
+  # false = use an external database, nothing MariaDB-related is rendered
+  deploy_db: true
+  image:
+    repository: mariadb
+    tag: "11.8"
+    pullPolicy: IfNotPresent
+  database: wavelog
+  username: wavelog
+  # Required when deploy_db is true. MariaDB creates the user on first
+  # start - changing it here later has no effect on an existing database.
+  password: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 1Gi
+  # Rendered into /etc/mysql/conf.d/99-tuning.cnf
+  config:
+    innodb_buffer_pool_size: 512M
+    tmp_table_size: 64M
+    max_heap_table_size: 64M
+    slow_query_log: 1
+    slow_query_log_file: /var/log/mysql/slow.log
+    long_query_time: 0.5
+
+persistence:
+  # Fallback for volumes without their own storageClass.
+  # Empty = default StorageClass of the cluster.
+  storageClass: ""
+  # MariaDB and Valkey belong on block storage: InnoDB and AOF need the
+  # locking and fsync semantics that shared filesystems do not guarantee.
+  dbdata:
+    size: 2Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  valkey:
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  # The following volumes are shared by all wavelog replicas. With
+  # wavelog.replicas > 1 they must be ReadWriteMany.
+  config:
+    size: 128Mi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  uploads:
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  userdata:
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  appcache:
+    size: 2Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  backup:
+    size: 2Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  updates:
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+
+service:
+  # The Ingress terminates TLS and routes /ws to the worker. A LoadBalancer
+  # would expose the app unencrypted next to it.
+  type: ClusterIP
+  port: 8086
+
+ingress:
+  # Required for the worker WebSocket: /ws is served through the Ingress
+  enabled: true
+  # Empty = default IngressClass of the cluster
+  className: ""
+  host: wavelog.example.com
+  # Additional hosts served by the same instance (need matching config.php)
+  extraHosts: []
+  # false = no tls block, for TLS termination in front of the cluster
+  tls: true
+  annotations: {}
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt

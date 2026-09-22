@@ -1,0 +1,102 @@
+{{- if .Values.mariadb.deploy_db }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "wavelog.fullname" . }}-dbdata
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+  annotations:
+    # Without keep, switching to deploy_db=false deletes the PVC and, with
+    # reclaimPolicy Delete, the underlying volume
+    helm.sh/resource-policy: keep
+spec:
+  {{- include "wavelog.pvcSpec" (dict "cfg" .Values.persistence.dbdata "root" $) | nindent 2 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wavelog.fullname" . }}-db
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    # RWO volume: the old pod must go before the new one starts
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-db
+  template:
+    metadata:
+      annotations:
+        # Without the checksum a ConfigMap-only change leaves the Deployment
+        # spec unchanged and helm upgrade does not roll the pod
+        checksum/config: {{ include (print $.Template.BasePath "/mariadb-config.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-db
+        {{- include "wavelog.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      containers:
+        - name: mariadb
+          image: "{{ .Values.mariadb.image.repository }}:{{ .Values.mariadb.image.tag }}"
+          imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
+          env:
+            # Must be a string - unquoted "yes" becomes true in YAML
+            - name: MARIADB_RANDOM_ROOT_PASSWORD
+              value: "yes"
+          envFrom:
+            - secretRef:
+                name: {{ include "wavelog.fullname" . }}-db
+          ports:
+            - name: mysql
+              containerPort: 3306
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: dbdata
+              mountPath: /var/lib/mysql
+            - name: dbconfig
+              mountPath: /etc/mysql/conf.d
+              readOnly: true
+            - name: dblog
+              mountPath: /var/log/mysql
+          resources:
+            {{- toYaml .Values.mariadb.resources | nindent 12 }}
+      volumes:
+        - name: dbdata
+          persistentVolumeClaim:
+            claimName: {{ include "wavelog.fullname" . }}-dbdata
+        - name: dbconfig
+          configMap:
+            name: {{ include "wavelog.fullname" . }}-db-config
+        # The slow log does not belong on the data volume - a full
+        # /var/lib/mysql stalls the DB
+        - name: dblog
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wavelog.fullname" . }}-db
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-db
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+{{- end }}

@@ -1,0 +1,10 @@
+.git/
+.github/
+.gitignore
+.helmignore
+.sops.yaml
+*.secrets.yaml
+*.sh
+*.php
+*.tgz
+worker-config.yaml

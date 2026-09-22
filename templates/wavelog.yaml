@@ -1,0 +1,142 @@
+{{- $volumes := pick .Values.persistence "config" "uploads" "userdata" "appcache" "backup" "updates" }}
+{{/* With wavelog.configSecrets config.php & Co. come from Secrets instead
+     of the config PVC - then the PVC is not created at all */}}
+{{- if .Values.wavelog.configSecrets }}
+{{- $volumes = omit $volumes "config" }}
+{{- end }}
+{{- range $name, $cfg := $volumes }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "wavelog.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "wavelog.labels" $ | nindent 4 }}
+spec:
+  {{- include "wavelog.pvcSpec" (dict "cfg" $cfg "root" $) | nindent 2 }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wavelog.fullname" . }}
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+    {{- with .Values.wavelog.metadata.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.wavelog.metadata.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.wavelog.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "wavelog.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "wavelog.fullname" . }}
+        {{- include "wavelog.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      # ScheduleAnyway instead of DoNotSchedule: on a node failure the third
+      # replica should still start, just unevenly spread
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "wavelog.fullname" . }}
+      {{- with .Values.wavelog.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 33
+        fsGroupChangePolicy: OnRootMismatch
+      {{- if .Values.mariadb.deploy_db }}
+      initContainers:
+        # Replaces depends_on from the compose file. Not rendered for an
+        # external DB - that one runs before the chart is installed
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z {{ include "wavelog.fullname" . }}-db 3306; do echo waiting for db; sleep 2; done
+      {{- end }}
+      containers:
+        - name: wavelog
+          image: "{{ .Values.wavelog.image.repository }}:{{ .Values.wavelog.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.wavelog.image.pullPolicy }}
+          env:
+            - name: CI_ENV
+              value: docker
+            - name: DOCKER_DEVELOPMENT
+              value: "false"
+            - name: DISABLE_CRON
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 80
+          # tcpSocket instead of httpGet: before setup the installer does not
+          # reliably answer with 200
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /var/www/html/application/config/docker
+            - name: uploads
+              mountPath: /var/www/html/uploads
+            - name: userdata
+              mountPath: /var/www/html/userdata
+            - name: appcache
+              mountPath: /var/www/html/application/cache
+            - name: backup
+              mountPath: /var/www/html/backup
+            - name: updates
+              mountPath: /var/www/html/updates
+          resources:
+            {{- toYaml .Values.wavelog.resources | nindent 12 }}
+      volumes:
+        {{- with .Values.wavelog.configSecrets }}
+        - name: config
+          projected:
+            sources:
+              {{- range . }}
+              - secret:
+                  name: {{ . }}
+              {{- end }}
+        {{- end }}
+        {{- range $name, $cfg := $volumes }}
+        - name: {{ $name }}
+          persistentVolumeClaim:
+            claimName: {{ include "wavelog.fullname" $ }}-{{ $name }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wavelog.fullname" . }}
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "wavelog.fullname" . }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

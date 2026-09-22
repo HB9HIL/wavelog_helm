@@ -1,0 +1,36 @@
+name: chart
+
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Lint
+        run: |
+          helm lint . --set worker.secret=x --set mariadb.password=x
+          helm template wavelog . --set worker.secret=x --set mariadb.password=x > /dev/null
+
+      - name: Check tag matches Chart.yaml
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v=$(yq '.version' Chart.yaml)
+          [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != Chart.yaml version $v"; exit 1; }
+
+      - name: Push to ghcr.io
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm package .
+          helm push wavelog-${GITHUB_REF_NAME}.tgz oci://ghcr.io/$(echo "${{ github.repository_owner }}" | tr A-Z a-z)/charts

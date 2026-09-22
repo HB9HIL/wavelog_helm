@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wavelog.fullname" . }}-cron
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+    {{- with .Values.cron.metadata.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.cron.metadata.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # Fixed at 1 - several loops would trigger the same endpoint in parallel
+  replicas: 1
+  # Recreate: no second loop may run during a rollout
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-cron
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-cron
+        {{- include "wavelog.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      containers:
+        - name: cron
+          image: "{{ .Values.cron.image.repository }}:{{ .Values.cron.image.tag }}"
+          imagePullPolicy: {{ .Values.cron.image.pullPolicy }}
+          env:
+            # Calls the service directly, not the Ingress, but with the
+            # public host header so Wavelog builds correct URLs
+            - name: CRON_URL
+              value: http://{{ include "wavelog.fullname" . }}:{{ .Values.service.port }}/index.php/cron/run
+            - name: CRON_HOST
+              value: {{ .Values.ingress.host }}
+            - name: CRON_INTERVAL
+              value: "{{ .Values.cron.interval }}"
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                # 429 = Wavelog's own 30s lock, not an error
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H "Host: $CRON_HOST" "$CRON_URL" || echo "000")
+                echo "$(date -Iseconds) cron/run -> $code"
+                sleep "$CRON_INTERVAL"
+              done
+          resources:
+            {{- toYaml .Values.cron.resources | nindent 12 }}
