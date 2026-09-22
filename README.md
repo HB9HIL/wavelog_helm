@@ -135,16 +135,30 @@ wavelog:
   PVC does.
 - Switching `deploy_db` to `false` keeps the `dbdata` PVC (`helm.sh/resource-policy: keep`).
 - Apache access/error logs go to the container's stdout/stderr. Wavelog's own
-  `log_message()` output does not: CodeIgniter writes it to a file under `log_path`,
-  and the file name is hardcoded. With `one_log = true` the name becomes
-  `log-<base_url without scheme and slashes>.php`, which a symlink can point at stderr.
-  In `config.php`:
+  `log_message()` output does not: CodeIgniter only writes it via `fopen()` to a file
+  below `log_path`. A symlink to `/proc/self/fd/2` does not help either, because the
+  container's stderr pipe is root-owned (`0600`) and the `www-data` workers cannot
+  reopen it. `php://stderr` duplicates the inherited descriptor instead, so a tiny
+  stream wrapper in `config.php` gets the lines out:
 
   ```php
-  $config['log_path'] = '/tmp';
+  $config['log_path'] = 'stderr://log';
   $config['one_log'] = true;
-  @symlink('/proc/self/fd/2', '/tmp/log-wavelog.example.com.php');
+  if (!class_exists('StderrLogWrapper')) {
+      class StderrLogWrapper {
+          public $context;
+          private $fp;
+          public function url_stat($path, $flags) { return ['mode' => 040777]; }
+          public function stream_open($path, $mode, $options, &$opened_path) { return ($this->fp = fopen('php://stderr', 'w')) !== false; }
+          public function stream_write($data) { return fwrite($this->fp, $data); }
+          public function stream_lock($operation) { return true; }
+          public function stream_flush() { return true; }
+          public function stream_close() { fclose($this->fp); }
+      }
+      stream_wrapper_register('stderr', 'StderrLogWrapper');
+  }
   ```
 
-  Adjust the file name to your `base_url`. The lines then show up in the `wavelog`
-  container log as `ERROR - <timestamp> --> <message>`.
+  The lines then show up in the `wavelog` container log as
+  `ERROR - <timestamp> --> <message>`. Drop the wrapper once Wavelog's `Log.php`
+  can log to stderr itself.
