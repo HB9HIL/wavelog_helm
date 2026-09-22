@@ -133,17 +133,3 @@ wavelog:
 - `helm upgrade` does not touch the PHP files in the config PVC. Deleting the
   PVC does.
 - Switching `deploy_db` to `false` keeps the `dbdata` PVC (`helm.sh/resource-policy: keep`).
-- Apache access/error logs go to the container's stdout/stderr. Wavelog's own
-  `log_message()` output does not: CodeIgniter writes it to a file under `log_path`,
-  and the file name is hardcoded. With `one_log = true` the name becomes
-  `log-<base_url without scheme and slashes>.php`, which a symlink can point at stderr.
-  In `config.php`:
-
-  ```php
-  $config['log_path'] = '/tmp';
-  $config['one_log'] = true;
-  @symlink('/proc/self/fd/2', '/tmp/log-wavelog.example.com.php');
-  ```
-
-  Adjust the file name to your `base_url`. The lines then show up in the `wavelog`
-  container log as `ERROR - <timestamp> --> <message>`.
