@@ -7,7 +7,7 @@ Deploys [Wavelog](https://github.com/wavelog/wavelog), the amateur radio logbook
 | `wavelog` | Deployment | PHP app, `ghcr.io/wavelog/wavelog` |
 | `wavelog-worker` | Deployment | [wavelog_worker](https://github.com/wavelog/wavelog_worker) for WebSockets, nodes coordinate via Valkey |
 | `wavelog-valkey` | Deployment | sessions, cache, worker pub/sub |
-| `wavelog-cron` | Deployment | curl loop calling `/index.php/cron/run` every `cron.interval` seconds |
+| `wavelog-cron` | Deployment | curl loop calling `/index.php/cron/run` every minute |
 | `wavelog-db` | Deployment | MariaDB, optional (`mariadb.deploy_db`) |
 
 The Ingress routes `/ws` to the worker and `/` to the app on the same host. It is
@@ -100,7 +100,6 @@ IPs. Grant the user for every node.
 | `wavelog.imagePullSecrets` | unset | for private registries |
 | `worker.replicas` | `3` | scales freely |
 | `worker.secret` | required | shared secret with `worker.php` |
-| `cron.interval` | `60` | seconds between cron calls |
 | `mariadb.deploy_db` | `true` | `false` = external database |
 | `mariadb.password` | required if `deploy_db` | set before first install |
 | `mariadb.config` | see values | rendered into `99-tuning.cnf` |

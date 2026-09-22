@@ -40,8 +40,6 @@ spec:
               value: http://{{ include "wavelog.fullname" . }}:{{ .Values.service.port }}/index.php/cron/run
             - name: CRON_HOST
               value: {{ .Values.ingress.host }}
-            - name: CRON_INTERVAL
-              value: "{{ .Values.cron.interval }}"
           command:
             - sh
             - -c
@@ -50,7 +48,8 @@ spec:
                 # 429 = Wavelog's own 30s lock, not an error
                 code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H "Host: $CRON_HOST" "$CRON_URL" || echo "000")
                 echo "$(date -Iseconds) cron/run -> $code"
-                sleep "$CRON_INTERVAL"
+                # sleep until the next full minute, no drift
+                sleep $((60 - $(date +%s) % 60))
               done
           resources:
             {{- toYaml .Values.cron.resources | nindent 12 }}

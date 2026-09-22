@@ -51,8 +51,6 @@ worker:
     annotations: {}
 
 cron:
-  # Seconds between calls of /index.php/cron/run
-  interval: 60
   image:
     repository: curlimages/curl
     tag: "8.22.0"
