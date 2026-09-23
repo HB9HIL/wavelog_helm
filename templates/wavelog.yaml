@@ -38,6 +38,8 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "wavelog.fullname" . }}
         {{- include "wavelog.labels" . | nindent 8 }}
+      annotations:
+        checksum/apache: {{ include (print $.Template.BasePath "/apache-config.yaml") . | sha256sum }}
     spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
@@ -108,9 +110,15 @@ spec:
               mountPath: /var/www/html/backup
             - name: updates
               mountPath: /var/www/html/updates
+            - name: apache-mpm
+              mountPath: /etc/apache2/mods-available/mpm_prefork.conf
+              subPath: mpm_prefork.conf
           resources:
             {{- toYaml .Values.wavelog.resources | nindent 12 }}
       volumes:
+        - name: apache-mpm
+          configMap:
+            name: {{ include "wavelog.fullname" . }}-apache-mpm
         {{- with .Values.wavelog.configSecrets }}
         - name: config
           projected:

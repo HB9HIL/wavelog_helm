@@ -98,6 +98,7 @@ IPs. Grant the user for every node.
 | `wavelog.image.tag` | `""` | empty = `Chart.appVersion` |
 | `wavelog.configSecrets` | `[]` | Secrets with PHP config files, replaces the config PVC |
 | `wavelog.imagePullSecrets` | unset | for private registries |
+| `wavelog.apache.mpm` | see values | Apache prefork limits, `replicas * MaxRequestWorkers < max_connections` of the DB |
 | `worker.replicas` | `3` | scales freely |
 | `worker.secret` | required | shared secret with `worker.php` |
 | `mariadb.deploy_db` | `true` | `false` = external database |

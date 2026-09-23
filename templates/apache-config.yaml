@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wavelog.fullname" . }}-apache-mpm
+  labels:
+    {{- include "wavelog.labels" . | nindent 4 }}
+data:
+  mpm_prefork.conf: |
+    <IfModule mpm_prefork_module>
+    {{- range $key, $value := .Values.wavelog.apache.mpm }}
+    {{ $key }} {{ $value }}
+    {{- end }}
+    </IfModule>
