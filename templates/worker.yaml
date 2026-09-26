@@ -53,7 +53,10 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: {{ include "wavelog.fullname" . }}-worker

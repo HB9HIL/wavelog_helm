@@ -44,12 +44,16 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
-      # ScheduleAnyway instead of DoNotSchedule: on a node failure the third
-      # replica should still start, just unevenly spread
+      # Honor drops tainted (control-plane, failed) nodes from the count, so a
+      # replacement replica still starts on a node failure; matchLabelKeys keeps
+      # old ReplicaSet pods from skewing the spread during a rollout
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: {{ include "wavelog.fullname" . }}
