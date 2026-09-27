@@ -47,6 +47,9 @@ spec:
             # Must be a string - unquoted "yes" becomes true in YAML
             - name: MARIADB_RANDOM_ROOT_PASSWORD
               value: "yes"
+            # Run mariadb-upgrade on start after a major version bump
+            - name: MARIADB_AUTO_UPGRADE
+              value: "1"
           envFrom:
             - secretRef:
                 name: {{ include "wavelog.fullname" . }}-db
