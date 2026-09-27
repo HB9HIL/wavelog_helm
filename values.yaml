@@ -76,7 +76,7 @@ cron:
 valkey:
   image:
     repository: valkey/valkey
-    tag: "9.2-alpine"
+    tag: "9.1.2-alpine"
     pullPolicy: IfNotPresent
   # Generous limit: Valkey does not know the cgroup limit and gets
   # OOM-killed instead of evicting. Set maxmemory once the real usage is

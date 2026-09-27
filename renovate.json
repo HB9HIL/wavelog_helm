@@ -8,6 +8,11 @@
       "description": "Stay on MariaDB 12.3 LTS",
       "matchPackageNames": ["mariadb"],
       "allowedVersions": "/^12\\.3(\\.|$)/"
+    },
+    {
+      "description": "Stay on Valkey 9.1",
+      "matchPackageNames": ["valkey/valkey"],
+      "allowedVersions": "/^9\\.1(\\.|$)/"
     }
   ]
 }
