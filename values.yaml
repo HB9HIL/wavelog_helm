@@ -93,7 +93,7 @@ mariadb:
   deploy_db: true
   image:
     repository: mariadb
-    tag: "12.3"
+    tag: "12.3.3"
     pullPolicy: IfNotPresent
   database: wavelog
   username: wavelog
