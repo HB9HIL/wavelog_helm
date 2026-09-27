@@ -2,5 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Stay on MariaDB 12.3 LTS",
+      "matchPackageNames": ["mariadb"],
+      "allowedVersions": "/^12\\.3(\\.|$)/"
+    }
   ]
 }
