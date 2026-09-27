@@ -8,3 +8,5 @@
 *.php
 *.tgz
 worker-config.yaml
+renovate.json
+CHANGELOG.md
