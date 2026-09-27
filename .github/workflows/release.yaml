@@ -7,7 +7,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -28,9 +28,31 @@ jobs:
           v=$(yq '.version' Chart.yaml)
           [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != Chart.yaml version $v"; exit 1; }
 
+      - name: Extract release notes from CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          awk -v ver="$GITHUB_REF_NAME" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]")) { found=1; next }
+            }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release_notes.md"
+          if [ ! -s "$RUNNER_TEMP/release_notes.md" ]; then
+            echo "::error::No changelog section found for version $GITHUB_REF_NAME"
+            exit 1
+          fi
+
       - name: Push to ghcr.io
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           helm package .
           helm push wavelog-${GITHUB_REF_NAME}.tgz oci://ghcr.io/$(echo "${{ github.repository_owner }}" | tr A-Z a-z)/charts
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: ${{ runner.temp }}/release_notes.md
+          files: wavelog-${{ github.ref_name }}.tgz
