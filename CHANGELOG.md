@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-28
+
+### Changed
+- NOTES show how to read back `mariadb.password` and `worker.secret`, and warn when TLS is on without a cert-manager annotation. They also list the `sess_driver`/`sess_save_path` settings for Valkey. (by @HB9HIL)
+
+### Docs
+- README install sets the cert-manager annotation, explains the `wavelog-tls` Secret and mentions NetworkPolicies. Scaling up requires `sess_driver = 'redis2'` in `config.php`. The web installer does not configure the worker, `worker.php` has to be added by hand. (by @HB9HIL)
+
 ## [2.0.0] - 2026-09-26
 
 ### Changed

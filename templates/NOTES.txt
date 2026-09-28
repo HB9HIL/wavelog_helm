@@ -8,6 +8,11 @@ from it - use exactly these names in redis.php and worker.php.
 Access:
 {{- if .Values.ingress.enabled }}
   https://{{ .Values.ingress.host }}
+{{- if and .Values.ingress.tls (not (index .Values.ingress.annotations "cert-manager.io/cluster-issuer")) (not (index .Values.ingress.annotations "cert-manager.io/issuer")) }}
+
+  WARNING: no cert-manager annotation set. The Ingress expects the TLS Secret
+  "{{ include "wavelog.fullname" . }}-tls" - create it yourself or the ingress controller serves its default certificate.
+{{- end }}
 {{- else if eq .Values.service.type "LoadBalancer" }}
   kubectl -n {{ .Release.Namespace }} get svc {{ include "wavelog.fullname" . }} -w
 {{- else }}
@@ -20,14 +25,19 @@ Enter in the web installer:
   Hostname:   {{ include "wavelog.fullname" . }}-db
   Database:   {{ .Values.mariadb.database }}
   User:       {{ .Values.mariadb.username }}
-  Password:   mariadb.password from your values
+  Password:   helm get values {{ .Release.Name }} -n {{ .Release.Namespace }}  (mariadb.password)
 {{- end }}
 
 Valkey (redis.php):
   Hostname:   {{ include "wavelog.fullname" . }}-valkey
   Port:       6379
 
-Worker ({{ .Values.worker.replicas }} nodes, coordinated via Valkey) - set in application/config/worker.php:
+Sessions (config.php) - REQUIRED before wavelog.replicas > 1:
+  $config['sess_driver'] = 'redis2';
+  $config['sess_save_path'] = 'tcp://{{ include "wavelog.fullname" . }}-valkey:6379';
+
+Worker ({{ .Values.worker.replicas }} nodes, coordinated via Valkey) - NOT configured by the web installer,
+Wavelog ignores the worker until you add application/config/worker.php:
   $config['worker_enabled'] = true;
   $config['worker_url'] = 'http://{{ include "wavelog.fullname" . }}-worker:9001';
 {{- if .Values.ingress.enabled }}
@@ -35,7 +45,7 @@ Worker ({{ .Values.worker.replicas }} nodes, coordinated via Valkey) - set in ap
 {{- else }}
   $config['worker_client_url'] = '';  # ingress.enabled=false -> no WebSocket in the browser
 {{- end }}
-  $config['worker_secret'] = '<worker.secret>';
+  $config['worker_secret'] = '<worker.secret>';  # helm get values {{ .Release.Name }} -n {{ .Release.Namespace }}
 
 After the installer has finished: add config.php, redis.php and worker.php
-(README, "First run"), then scale wavelog.replicas up.
+(README, "First run"), switch sess_driver to redis2, then scale wavelog.replicas up.

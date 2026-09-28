@@ -19,9 +19,18 @@ required for WebSockets in the browser.
 helm install wavelog oci://ghcr.io/hb9hil/charts/wavelog \
   --namespace wavelog --create-namespace \
   --set ingress.host=log.example.com \
+  --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt \
   --set mariadb.password="$(openssl rand -hex 16)" \
   --set worker.secret="$(openssl rand -hex 32)"
 ```
+
+The Ingress expects its certificate in the Secret `wavelog-tls`. The
+cert-manager annotation creates it. Replace `letsencrypt` with your
+ClusterIssuer. Without cert-manager, create `wavelog-tls` yourself. With TLS in
+front of the cluster, drop the annotation and set `ingress.tls=false`.
+
+The installer and `worker.php` need the generated secrets. Read them back with
+`helm get values wavelog -n wavelog`.
 
 Keep the release name `wavelog`. Service names derive from it, and you will
 write them into `redis.php` and `worker.php` by hand. `helm install log ...`
@@ -34,6 +43,11 @@ file you do not commit rather than on the command line.
 
 1. Open `https://<ingress.host>` and run the web installer. `helm install`
    prints the database host, name and user (`helm get notes wavelog`).
+
+   **The installer does not configure the worker.** The `wavelog-worker` pods
+   run, but Wavelog ignores them and has no WebSockets until you add
+   `worker.php` in step 2. The installer does not set up Valkey either, so
+   you add `redis.php` yourself as well.
 2. Add your own PHP config files to `application/config/docker`. Two ways:
 
    **a) config PVC (default).** The PVC is shared by all replicas, copying into
@@ -65,7 +79,18 @@ file you do not commit rather than on the command line.
    in `worker.php` must equal `worker.secret`.
 
 3. Scale up. `wavelog.replicas: 1` is the default so only one pod runs the
-   installer. More replicas need `ReadWriteMany` storage for the shared volumes:
+   installer.
+
+   **Before scaling, move sessions to Valkey in `config.php`.** The default
+   `files` driver keeps sessions in the pod's `/tmp`. With more than one
+   replica, users get logged out whenever a request hits a different pod.
+
+   ```php
+   $config['sess_driver'] = 'redis2';
+   $config['sess_save_path'] = 'tcp://wavelog-valkey:6379';
+   ```
+
+   More replicas also need `ReadWriteMany` storage for the shared volumes:
 
    ```yaml
    wavelog:
@@ -94,7 +119,7 @@ IPs. Grant the user for every node.
 
 | Key | Default | Description |
 |---|---|---|
-| `wavelog.replicas` | `1` | raise after the installer has finished |
+| `wavelog.replicas` | `1` | raise after the installer has finished and `sess_driver` is `redis2` |
 | `wavelog.image.tag` | `""` | empty = `Chart.appVersion` |
 | `wavelog.configSecrets` | `[]` | Secrets with PHP config files, replaces the config PVC |
 | `wavelog.imagePullSecrets` | unset | for private registries |
@@ -133,4 +158,7 @@ wavelog:
   never leaves the cluster. `429` in its log is Wavelog's own 30 s lock, not an error.
 - `helm upgrade` does not touch the PHP files in the config PVC. Deleting the
   PVC does.
+- NetworkPolicies are not part of the chart. With default-deny (e.g. Cilium),
+  allow at least traffic within the namespace, egress `443` for updates and
+  lookups, and your SMTP port.
 - Switching `deploy_db` to `false` keeps the `dbdata` PVC (`helm.sh/resource-policy: keep`).
