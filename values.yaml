@@ -110,7 +110,7 @@ valkey:
         cpu: 10m
         memory: 32Mi
       limits:
-        memory: 128Mi
+        memory: 192Mi
 
 mariadb:
   # false = use an external database, nothing MariaDB-related is rendered
