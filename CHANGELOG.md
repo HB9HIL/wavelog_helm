@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-30
+
+This will cause a complete cache wipeout and all users need to relogin
+
+### Changed
+- valkey is now high available and users won't notice any longer that there are cluster reboots and reschedules. Since we have now multiple replicas of valkey there is no need to persist anything (by @HB9HIL)
+
 ## [2.0.1] - 2026-09-28
 
 ### Changed

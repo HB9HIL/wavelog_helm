@@ -6,7 +6,8 @@ Deploys [Wavelog](https://github.com/wavelog/wavelog), the amateur radio logbook
 |---|---|---|
 | `wavelog` | Deployment | PHP app, `ghcr.io/wavelog/wavelog` |
 | `wavelog-worker` | Deployment | [wavelog_worker](https://github.com/wavelog/wavelog_worker) for WebSockets, nodes coordinate via Valkey |
-| `wavelog-valkey` | Deployment | sessions, cache, worker pub/sub |
+| `wavelog-valkey` | Deployment | HAProxy in front of the Valkey nodes, always routes to the current master |
+| `wavelog-valkey-node` | StatefulSet | 3 Valkey nodes with Sentinel sidecars: sessions, cache, worker pub/sub. No persistence, the replicas carry the data across node restarts |
 | `wavelog-cron` | Deployment | curl loop calling `/index.php/cron/run` every minute |
 | `wavelog-db` | Deployment | MariaDB, optional (`mariadb.deploy_db`) |
 
@@ -129,6 +130,8 @@ IPs. Grant the user for every node.
 | `mariadb.deploy_db` | `true` | `false` = external database |
 | `mariadb.password` | required if `deploy_db` | set before first install |
 | `mariadb.config` | see values | rendered into `99-tuning.cnf` |
+| `valkey.resources`, `valkey.sentinel.resources` | see values | per Valkey node |
+| `valkey.haproxy.replicas` | `3` | |
 | `persistence.storageClass` | `""` | fallback for all volumes |
 | `persistence.<vol>.{size,storageClass,accessMode}` | see values | per-volume settings |
 | `ingress.className` | `""` | cluster default |

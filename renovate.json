@@ -14,5 +14,10 @@
       "matchPackageNames": ["valkey/valkey"],
       "allowedVersions": "/^9\\.1(\\.|$)/"
     }
+    {
+      "description": "Stay on HAproxy 3.4",
+      "matchPackageNames": ["haproxy"],
+      "allowedVersions": "/^3\\.4(\\.|$)/"
+    }
   ]
 }

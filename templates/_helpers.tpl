@@ -23,3 +23,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end -}}
+
+{{/* Env for init.sh and prestop.sh */}}
+{{- define "wavelog.valkeyEnv" -}}
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: STS
+  value: {{ include "wavelog.fullname" . }}-valkey-node
+- name: HEADLESS
+  value: {{ include "wavelog.fullname" . }}-valkey-headless.{{ .Release.Namespace }}.svc.cluster.local
+{{- end -}}

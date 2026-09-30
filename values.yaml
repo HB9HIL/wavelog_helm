@@ -80,13 +80,37 @@ valkey:
     pullPolicy: IfNotPresent
   # Generous limit: Valkey does not know the cgroup limit and gets
   # OOM-killed instead of evicting. Set maxmemory once the real usage is
-  # known - sessions and cache share this instance.
+  # known - sessions and cache share this instance. Applies to each of the
+  # three nodes (StatefulSet, one master, two replicas, Sentinel sidecars).
+  # No persistence: the data is volatile and survives a node restart
+  # through the replicas.
   resources:
     requests:
       cpu: 50m
       memory: 128Mi
     limits:
       memory: 512Mi
+  sentinel:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        memory: 64Mi
+  # Routes the valkey service to whichever node is master, so clients
+  # need no Sentinel support
+  haproxy:
+    replicas: 3
+    image:
+      repository: haproxy
+      tag: "3.4.6-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
 
 mariadb:
   # false = use an external database, nothing MariaDB-related is rendered
@@ -119,14 +143,10 @@ persistence:
   # Fallback for volumes without their own storageClass.
   # Empty = default StorageClass of the cluster.
   storageClass: ""
-  # MariaDB and Valkey belong on block storage: InnoDB and AOF need the
-  # locking and fsync semantics that shared filesystems do not guarantee.
+  # MariaDB belongs on block storage: InnoDB needs the locking and fsync
+  # semantics that shared filesystems do not guarantee.
   dbdata:
     size: 2Gi
-    storageClass: ""
-    accessMode: ReadWriteOnce
-  valkey:
-    size: 1Gi
     storageClass: ""
     accessMode: ReadWriteOnce
   # The following volumes are shared by all wavelog replicas. With
