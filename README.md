@@ -124,6 +124,7 @@ IPs. Grant the user for every node.
 | `wavelog.image.tag` | `""` | empty = `Chart.appVersion` |
 | `wavelog.configSecrets` | `[]` | Secrets with PHP config files, replaces the config PVC |
 | `wavelog.imagePullSecrets` | unset | for private registries |
+| `wavelog.applog.resources` | see values | `wavelog-applog` sidecar |
 | `wavelog.apache.mpm` | see values | Apache prefork limits, `replicas * MaxRequestWorkers < max_connections` of the DB |
 | `worker.replicas` | `3` | scales freely |
 | `worker.secret` | required | shared secret with `worker.php` |
@@ -154,6 +155,15 @@ wavelog:
       keel.sh/trigger: poll
       keel.sh/pollSchedule: "@every 5m"
 ```
+
+## Application log
+
+Wavelog writes `log_message()` to `application/logs/` on a per-pod
+`emptyDir`. The `wavelog-applog` sidecar prints the current day's file to its
+stdout and deletes older ones, so a log collector picks it up as its own
+stream (Loki: `{container="wavelog-applog"}`). In `config.php` keep
+`log_path = ''` and `one_log = false`: with `one_log` there is a single file
+that is never rotated. `log_threshold` sets how much is logged.
 
 ## Good to know
 

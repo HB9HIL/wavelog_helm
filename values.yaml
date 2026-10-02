@@ -24,6 +24,14 @@ wavelog:
       memory: 256Mi
     limits:
       memory: 512Mi
+  # Sidecar that prints application/logs to stdout (see README)
+  applog:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 8Mi
+      limits:
+        memory: 32Mi
   apache:
     mpm:
       StartServers: 5

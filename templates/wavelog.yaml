@@ -64,17 +64,42 @@ spec:
       securityContext:
         fsGroup: 33
         fsGroupChangePolicy: OnRootMismatch
-      {{- if .Values.mariadb.deploy_db }}
       initContainers:
+        {{- if .Values.mariadb.deploy_db }}
         # Replaces depends_on from the compose file. Not rendered for an
         # external DB - that one runs before the chart is installed
         - name: wait-for-db
-          image: busybox:1.36
+          image: busybox:1.37
           command:
             - sh
             - -c
             - until nc -z {{ include "wavelog.fullname" . }}-db 3306; do echo waiting for db; sleep 2; done
-      {{- end }}
+        {{- end }}
+        # Native sidecar: prints the current application log to stdout and
+        # drops older days. Needs one_log = false, otherwise the single log
+        # file is never rotated
+        - name: wavelog-applog
+          image: busybox:1.36
+          restartPolicy: Always
+          workingDir: /logs
+          command:
+            - sh
+            - -c
+            - |
+              while :; do
+                f=$(ls -t log-*.php 2>/dev/null | head -1)
+                if [ -z "$f" ]; then sleep 10; continue; fi
+                # +3 skips the PHP guard line and blank line Log.php puts on top
+                tail -n +3 -F "$f" & pid=$!
+                while [ "$(ls -t log-*.php | head -1)" = "$f" ]; do sleep 10; done
+                kill $pid; wait $pid 2>/dev/null
+                ls -t log-*.php | tail -n +2 | xargs -r rm -f
+              done
+          volumeMounts:
+            - name: applog
+              mountPath: /logs
+          resources:
+            {{- toYaml .Values.wavelog.applog.resources | nindent 12 }}
       containers:
         - name: wavelog
           image: "{{ .Values.wavelog.image.repository }}:{{ .Values.wavelog.image.tag | default .Chart.AppVersion }}"
@@ -110,6 +135,8 @@ spec:
               mountPath: /var/www/html/userdata
             - name: appcache
               mountPath: /var/www/html/application/cache
+            - name: applog
+              mountPath: /var/www/html/application/logs
             - name: backup
               mountPath: /var/www/html/backup
             - name: updates
@@ -120,6 +147,8 @@ spec:
           resources:
             {{- toYaml .Values.wavelog.resources | nindent 12 }}
       volumes:
+        - name: applog
+          emptyDir: {}
         - name: apache-mpm
           configMap:
             name: {{ include "wavelog.fullname" . }}-apache-mpm

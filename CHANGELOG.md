@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-02
+
+### Added
+- Sidecar `wavelog-applog` prints the Wavelog application log (`application/logs/`, now a per-pod `emptyDir`) to stdout and deletes older days. Requires `one_log = false` and an empty `log_path` in `config.php`. (by @HB9HIL)
+
 ## [2.1.1] - 2026-09-30
 
 ### Fixed
