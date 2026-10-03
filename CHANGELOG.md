@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-03
+
+### Added
+- `cron.timeout` is now configurable and set to a default of 1200 seconds. On large instances the cron job may take longer... (by @HB9HIL)
+
 ## [2.2.0] - 2026-10-02
 
 ### Added

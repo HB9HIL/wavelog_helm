@@ -45,10 +45,10 @@ spec:
             - -c
             - |
               while true; do
-                # 429 = Wavelog's own 30s lock, not an error
-                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H "Host: $CRON_HOST" "$CRON_URL" || echo "000")
-                echo "$(date -Iseconds) cron/run -> $code"
-                # sleep until the next full minute, no drift
+                (
+                  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time {{ .Values.cron.timeout }} -H "Host: $CRON_HOST" "$CRON_URL" || echo "000")
+                  echo "$(date -Iseconds) cron/run -> $code"
+                ) &
                 sleep $((60 - $(date +%s) % 60))
               done
           resources:

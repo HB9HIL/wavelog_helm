@@ -140,6 +140,7 @@ IPs. Grant the user for every node.
 | `ingress.extraHosts` | `[]` | additional hosts, `config.php` must accept them |
 | `ingress.tls` | `true` | `false` when TLS terminates in front of the cluster |
 | `ingress.annotations` | `{}` | e.g. `cert-manager.io/cluster-issuer` |
+| `cron.timeout` | `1200` | max seconds per `cron/run` call; on large instances a cron job can take a while |
 | `priorityClassName` | `""` | applied to all pods |
 | `*.metadata.annotations` | `{}` | on the Deployment, e.g. for Keel |
 
