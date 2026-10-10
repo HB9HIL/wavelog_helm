@@ -54,7 +54,7 @@ worker:
   secret: ""
   image:
     repository: ghcr.io/wavelog/wavelog_worker
-    tag: "v0.3.0"
+    tag: "v0.3.1"
     pullPolicy: IfNotPresent
   resources:
     requests:
