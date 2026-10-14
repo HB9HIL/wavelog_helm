@@ -71,7 +71,7 @@ cron:
   timeout: 1200
   image:
     repository: curlimages/curl
-    tag: "8.22.0"
+    tag: "8.23.0"
     pullPolicy: IfNotPresent
   resources:
     requests:
