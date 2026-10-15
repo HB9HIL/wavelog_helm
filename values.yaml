@@ -113,7 +113,7 @@ valkey:
     replicas: 3
     image:
       repository: haproxy
-      tag: "3.4.6-alpine"
+      tag: "3.4.7-alpine"
       pullPolicy: IfNotPresent
     resources:
       requests:
